@@ -1,0 +1,17 @@
+# FactNet Scripts Dependencies
+
+# MongoDB
+pymongo==4.6.0
+
+# NLP Tools
+nltk==3.8.1
+sentence-transformers==2.3.0
+torch>=2.0.0
+
+# Data Fetching
+feedparser==6.0.10
+requests==2.31.0
+
+# Utility
+tqdm==4.66.1
+python-dotenv==1.0.0

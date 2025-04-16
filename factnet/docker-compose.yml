@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  # MongoDB database
+  mongodb:
+    image: mongo:6.0
+    container_name: factnet-mongodb
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_DATABASE=factnet
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data:/data/db
+    networks:
+      - factnet-network
+
+  # Backend Django API
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: factnet-backend
+    restart: unless-stopped
+    depends_on:
+      - mongodb
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=True
+      - MONGODB_URI=mongodb://mongodb:27017/
+      - MONGODB_NAME=factnet
+      - SECRET_KEY=your-secret-key-change-in-production
+      - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}
+      - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET}
+      - ALLOWED_HOSTS=localhost,127.0.0.1
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000
+    volumes:
+      - ./backend:/app
+    networks:
+      - factnet-network
+    command: >
+      bash -c "python manage.py migrate &&
+               python manage.py runserver 0.0.0.0:8000"
+
+  # Frontend React application
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: factnet-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_GOOGLE_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - factnet-network
+
+  # News aggregator service (runs at scheduled intervals)
+  news-aggregator:
+    build:
+      context: .
+      dockerfile: Dockerfile.scripts
+    container_name: factnet-news-aggregator
+    restart: unless-stopped
+    depends_on:
+      - mongodb
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/
+    volumes:
+      - ./scripts:/app
+    networks:
+      - factnet-network
+    command: >
+      bash -c "python news_aggregator.py &&
+               python news_categorizer.py &&
+               echo 'News aggregation and categorization completed'"
+
+volumes:
+  mongodb-data:
+
+networks:
+  factnet-network:
+    driver: bridge
